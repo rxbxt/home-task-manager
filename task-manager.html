@@ -1,0 +1,94 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Home Task Manager</title>
+  <style>
+    body { font-family: sans-serif; padding: 2rem; background: #f5f5f5; }
+    table { width: 100%; border-collapse: collapse; background: #fff; margin-top: 1rem; }
+    th, td { padding: 0.75rem; border: 1px solid #ddd; text-align: left; }
+    th { background: #eee; }
+    tr.done td { color: #888; text-decoration: line-through; }
+    button { padding: 0.5rem 1rem; margin: 0; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h2>Home Task Manager</h2>
+  <p>Click “Mark Complete” to update task status in Nextcloud.</p>
+  <table id="taskTable">
+    <thead>
+      <tr>
+        <th>Task</th>
+        <th>Frequency</th>
+        <th>Last Completed</th>
+        <th>Needs Completion</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    const CSV_URL = "https://cloud.composerrob.com/index.php/s/3JMQEP45JQtSAfD/download";
+    const WEBHOOK_URL = "https://n8n.composerrob.com/webhook/task-update";
+
+    function parseCSV(csvText) {
+      const lines = csvText.trim().split("\n");
+      const headers = lines[0].split(",");
+      return lines.slice(1).map(line => {
+        const values = line.split(",");
+        const entry = {};
+        headers.forEach((h, i) => entry[h.trim()] = values[i]?.trim());
+        return entry;
+      });
+    }
+
+    function renderTasks(tasks) {
+      const tbody = document.querySelector("#taskTable tbody");
+      tbody.innerHTML = "";
+      tasks.forEach(task => {
+        const tr = document.createElement("tr");
+        if (task["Needs Completion"] !== "Yes") tr.classList.add("done");
+        tr.innerHTML = `
+          <td>${task["Task Name"]}</td>
+          <td>${task["Frequency"]}</td>
+          <td>${task["Last Completed"]}</td>
+          <td>${task["Needs Completion"]}</td>
+          <td>
+            <button ${task["Needs Completion"] !== "Yes" ? "disabled" : ""} onclick="markTask('${task["Task Name"]}')">
+              Mark Complete
+            </button>
+          </td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function loadTasks() {
+      try {
+        const res = await fetch(CSV_URL);
+        const csv = await res.text();
+        const tasks = parseCSV(csv);
+        renderTasks(tasks);
+      } catch (err) {
+        alert("Failed to load tasks: " + err.message);
+      }
+    }
+
+    async function markTask(taskName) {
+      const res = await fetch(WEBHOOK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ task: taskName })
+      });
+      if (res.ok) {
+        alert("Task marked complete!");
+        loadTasks();
+      } else {
+        alert("Failed to update task.");
+      }
+    }
+
+    loadTasks();
+  </script>
+</body>
+</html>
